@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chami Hockey</title>
+<style>
+:root{--bg:#f4efe6;--fg:#2a1a1a;--accent:#7a1f2b;--gold:#e0b030;--card:#fff;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#1a1214;--fg:#f4e9e0;--accent:#c4475a;--gold:#e0b030;--card:#2a1d20}}
+:root[data-theme="dark"]{--bg:#1a1214;--fg:#f4e9e0;--accent:#c4475a;--gold:#e0b030;--card:#2a1d20}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",sans-serif}
+body{display:flex;flex-direction:column;align-items:center;padding:12px;min-height:100vh}
+h1{margin:4px 0;font-size:1.5rem;color:var(--accent);letter-spacing:.04em}
+.sub{margin:0 0 8px;font-size:.85rem;opacity:.75}
+.wrap{position:relative;width:100%;max-width:360px}
+canvas{width:100%;height:auto;display:block;border-radius:14px;border:4px solid var(--accent);touch-action:none;background:#eaf4fb}
+.ov{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;background:rgba(40,10,15,.82);color:#fff;border-radius:10px;text-align:center;padding:20px}
+.ov h2{margin:0;color:var(--gold);font-size:1.6rem}
+.ov p{margin:0;font-size:.95rem}
+button{font:inherit;font-weight:700;padding:10px 24px;border:0;border-radius:999px;background:var(--gold);color:#3a1a00;cursor:pointer}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<h1>CHAMI HOCKEY</h1>
+<p class="sub">Students vs. The Faculty &middot; first to 5 wins &middot; <a href="index.html" style="color:var(--accent)">All Chami games</a></p>
+<div class="wrap">
+<canvas id="c" width="360" height="600"></canvas>
+<div class="ov" id="ov">
+<h2 id="ovT">Chami Hockey</h2>
+<p id="ovP">Drag your mallet to hit the puck into the Faculty's goal. Keep it out of yours!</p>
+<button id="btn">Drop the Puck</button>
+</div>
+</div>
+<script>
+const cv=document.getElementById('c'),x=cv.getContext('2d');
+const W=360,H=600,GW=120,WIN=5,PR=14,MR=26;
+const ov=document.getElementById('ov'),ovT=document.getElementById('ovT'),ovP=document.getElementById('ovP'),btn=document.getElementById('btn');
+let s,running=false,pause=0,ptr={x:W/2,y:H-90};
+function mk(){return{x:W/2,y:H/2,vx:0,vy:0}}
+function reset(){s={puck:mk(),me:{x:W/2,y:H-90,vx:0,vy:0},ai:{x:W/2,y:90,vx:0,vy:0},sc:[0,0]}}
+function serve(dir){s.puck=mk();s.puck.vy=dir*3;pause=50}
+function pos(e){const r=cv.getBoundingClientRect(),t=e.touches?e.touches[0]:e;ptr.x=(t.clientX-r.left)*W/r.width;ptr.y=(t.clientY-r.top)*H/r.height}
+['mousemove','touchmove','touchstart'].forEach(n=>cv.addEventListener(n,e=>{e.preventDefault();pos(e)},{passive:false}));
+function hit(p,m){
+ const dx=p.x-m.x,dy=p.y-m.y,d=Math.hypot(dx,dy),min=PR+MR;
+ if(d<min&&d>0){
+  const nx=dx/d,ny=dy/d;p.x=m.x+nx*min;p.y=m.y+ny*min;
+  const vn=(p.vx-m.vx)*nx+(p.vy-m.vy)*ny;
+  if(vn<0){p.vx-=2*vn*nx;p.vy-=2*vn*ny}
+  p.vx+=m.vx*.4;p.vy+=m.vy*.4;
+  const sp=Math.hypot(p.vx,p.vy);if(sp>13){p.vx*=13/sp;p.vy*=13/sp}
+ }
+}
+function goal(who){
+ s.sc[who]++;
+ if(s.sc[who]>=WIN){running=false;ovT.textContent=who?'You win! \u{1F3D2}':'Faculty wins!';ovP.textContent=who?'The Students take it '+s.sc[1]+'\u2013'+s.sc[0]+'. Chami pride!':'Detention for the Students, '+s.sc[0]+'\u2013'+s.sc[1]+'. Rematch?';btn.textContent='Play Again';ov.classList.remove('hidden')}
+ else serve(who?-1:1);
+}
+function step(){
+ const m=s.me,a=s.ai,p=s.puck;
+ let tx=Math.min(W-MR,Math.max(MR,ptr.x)),ty=Math.min(H-MR,Math.max(H/2+MR,ptr.y));
+ m.vx=tx-m.x;m.vy=ty-m.y;m.x=tx;m.y=ty;
+ if(pause>0){pause--;return}
+ let ax,ay;
+ if(p.y<H/2+20){ax=p.x;ay=p.y-30}else{ax=W/2+(p.x-W/2)*.4;ay=80}
+ const ds=Math.hypot(ax-a.x,ay-a.y),sp=Math.min(4.2,ds);
+ a.vx=ds?(ax-a.x)/ds*sp:0;a.vy=ds?(ay-a.y)/ds*sp:0;
+ a.x=Math.min(W-MR,Math.max(MR,a.x+a.vx));a.y=Math.min(H/2-MR,Math.max(MR,a.y+a.vy));
+ p.x+=p.vx;p.y+=p.vy;p.vx*=.995;p.vy*=.995;
+ hit(p,m);hit(p,a);
+ if(p.x<PR){p.x=PR;p.vx=Math.abs(p.vx)}
+ if(p.x>W-PR){p.x=W-PR;p.vx=-Math.abs(p.vx)}
+ const inG=Math.abs(p.x-W/2)<GW/2;
+ if(p.y<PR){if(inG&&p.y<-PR){goal(1);return}if(!inG){p.y=PR;p.vy=Math.abs(p.vy)}}
+ if(p.y>H-PR){if(inG&&p.y>H+PR){goal(0);return}if(!inG){p.y=H-PR;p.vy=-Math.abs(p.vy)}}
+}
+function draw(){
+ x.fillStyle='#eaf4fb';x.fillRect(0,0,W,H);
+ x.strokeStyle='#7a1f2b';x.lineWidth=3;
+ x.beginPath();x.moveTo(0,H/2);x.lineTo(W,H/2);x.stroke();
+ x.beginPath();x.arc(W/2,H/2,50,0,7);x.stroke();
+ x.fillStyle='#7a1f2b';x.beginPath();x.arc(W/2,H/2,5,0,7);x.fill();
+ x.fillStyle='#e0b030';
+ x.fillRect(W/2-GW/2,0,GW,6);x.fillRect(W/2-GW/2,H-6,GW,6);
+ x.fillStyle='rgba(122,31,43,.18)';x.font='bold 64px system-ui';x.textAlign='center';
+ x.fillText(s.sc[0],W/2,H/2-30);x.fillText(s.sc[1],W/2,H/2+80);
+ x.font='bold 11px system-ui';x.fillText('THE FACULTY',W/2,H/2-8);x.fillText('STUDENTS',W/2,H/2+20);
+ mallet(s.ai,'#444','#999');mallet(s.me,'#7a1f2b','#e0b030');
+ const p=s.puck;x.fillStyle='#111';x.beginPath();x.arc(p.x,p.y,PR,0,7);x.fill();
+ x.strokeStyle='#e0b030';x.lineWidth=2;x.beginPath();x.arc(p.x,p.y,PR-4,0,7);x.stroke();
+}
+function mallet(m,c1,c2){
+ x.fillStyle=c1;x.beginPath();x.arc(m.x,m.y,MR,0,7);x.fill();
+ x.fillStyle=c2;x.beginPath();x.arc(m.x,m.y,MR*.5,0,7);x.fill();
+}
+function loop(){if(running)step();draw();requestAnimationFrame(loop)}
+btn.onclick=()=>{reset();ov.classList.add('hidden');running=true;serve(1)};
+reset();loop();
+</script>
+</body>
+</html>
